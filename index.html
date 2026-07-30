@@ -119,17 +119,7 @@
     display:inline-block; min-width:24px; text-align:center; font-family:'IBM Plex Mono',monospace;
     color:var(--field); background:var(--gold); border-radius:3px; padding:1px 6px; font-weight:600; font-size:12px;
   }
-  .team-badge{
-    position:relative; display:inline-block; vertical-align:middle; border-radius:50%;
-    margin-right:7px; flex-shrink:0; overflow:hidden;
-  }
-  .team-badge .monogram{
-    position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--chalk); letter-spacing:-0.02em;
-  }
-  .team-badge img{ position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; border-radius:50%; }
-
+  
   /* ---------- conference cards ---------- */
   .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
   .card{
@@ -394,20 +384,10 @@ function hashColor(name){
   return `hsl(${hue}, 45%, 30%)`;
 }
 function teamBadge(name, size){
-  size = size || 20;
-  const slug = slugify(name);
-  return `<span class="team-badge" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.4)}px;">` +
-         `<span class="monogram" style="background:${hashColor(name)};">${initialsOf(name)}</span>` +
-         `<img src="logos/teams/${slug}.png" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` +
-         `</span>`;
+  return "";
 }
 function confBadge(code, size){
-  size = size || 20;
-  const label = (CONF_NAMES[code] || code || "?");
-  return `<span class="team-badge" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.35)}px;">` +
-         `<span class="monogram" style="background:${hashColor(label)};">${initialsOf(label)}</span>` +
-         `<img src="logos/conferences/${code}.png" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` +
-         `</span>`;
+  return "";
 }
 
 // ---------- team conference + record-through-a-given-week ----------
