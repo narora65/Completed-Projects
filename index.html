@@ -119,6 +119,16 @@
     display:inline-block; min-width:24px; text-align:center; font-family:'IBM Plex Mono',monospace;
     color:var(--field); background:var(--gold); border-radius:3px; padding:1px 6px; font-weight:600; font-size:12px;
   }
+  .team-badge{
+    position:relative; display:inline-block; vertical-align:middle; border-radius:50%;
+    margin-right:7px; flex-shrink:0; overflow:hidden;
+  }
+  .team-badge .monogram{
+    position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-weight:700; color:var(--chalk); letter-spacing:-0.02em;
+  }
+  .team-badge img{ position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; border-radius:50%; }
 
   /* ---------- conference cards ---------- */
   .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
@@ -263,7 +273,7 @@
     <div class="search-row">
       <select id="rankings-week-select"></select>
     </div>
-    <table><thead><tr><th>Rank</th><th>Team</th><th>Elo Rating</th></tr></thead><tbody id="rankings-body"></tbody></table>
+    <table><thead><tr><th>Rank</th><th>Team</th><th>Record</th><th>Conference</th><th>Elo Rating</th></tr></thead><tbody id="rankings-body"></tbody></table>
   </section>
 
   <section id="standings">
@@ -271,6 +281,7 @@
     <div class="section-sub">Ranked by conference win % (handles teams playing a different number of conference games). Ties broken in order: head-to-head, overall record, point differential, points per game, points allowed per game, coin flip.</div>
     <div class="search-row">
       <select id="standings-conf-select"></select>
+      <span id="standings-conf-badge" style="align-self:center;"></span>
     </div>
     <div id="standings-table"></div>
   </section>
@@ -333,6 +344,95 @@ const CONF_NAMES = {
 
 function pct(x){ return Math.round(x*100)+"%"; }
 
+// ---------- display-name fixes ----------
+const TEAM_DISPLAY_FIX = { "Massachusetts": "UMass", "Elon University": "Elon" };
+function normalizeTeamNames(data){
+  const fields = ["away","home","team","team1","team2","predicted_winner","loser","winner","team_a","team_b"];
+  function walk(obj){
+    if(Array.isArray(obj)){ obj.forEach(walk); return; }
+    if(obj && typeof obj === "object"){
+      for(const f of fields){
+        if(typeof obj[f] === "string" && TEAM_DISPLAY_FIX[obj[f]]) obj[f] = TEAM_DISPLAY_FIX[obj[f]];
+      }
+      for(const v of Object.values(obj)){
+        if(Array.isArray(v) || (v && typeof v === "object")) walk(v);
+      }
+    }
+  }
+  walk(data.games);
+  walk(data.top25);
+  Object.values(data.top25_by_week || {}).forEach(walk);
+  walk(data.conference_standings);
+  walk(data.conference_championships);
+  walk(data.playoff_bracket);
+  walk(data.upsets);
+  walk(data.talent_2026);
+  if(data.playoff_seeds){
+    for(const k in data.playoff_seeds){ if(TEAM_DISPLAY_FIX[data.playoff_seeds[k]]) data.playoff_seeds[k] = TEAM_DISPLAY_FIX[data.playoff_seeds[k]]; }
+  }
+  if(TEAM_DISPLAY_FIX[data.national_champion]) data.national_champion = TEAM_DISPLAY_FIX[data.national_champion];
+}
+
+// ---------- team/conference badges: real logo if one's available at
+// logos/teams/{slug}.png or logos/conferences/{code}.png, otherwise a
+// generated monogram (no official logos are bundled -- those are
+// trademarked; drop your own legally-obtained image files in those
+// folders and they'll be picked up automatically). ----------
+function slugify(name){
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+function initialsOf(name){
+  const stop = new Set(["of","the","at","&","st.","state"]);
+  const words = name.replace(/[()]/g, "").split(/\s+/).filter(w => w && !stop.has(w.toLowerCase()));
+  if(words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length-1][0]).toUpperCase();
+}
+function hashColor(name){
+  let hash = 0;
+  for(let i=0;i<name.length;i++){ hash = (hash*31 + name.charCodeAt(i)) | 0; }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 45%, 30%)`;
+}
+function teamBadge(name, size){
+  size = size || 20;
+  const slug = slugify(name);
+  return `<span class="team-badge" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.4)}px;">` +
+         `<span class="monogram" style="background:${hashColor(name)};">${initialsOf(name)}</span>` +
+         `<img src="logos/teams/${slug}.png" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` +
+         `</span>`;
+}
+function confBadge(code, size){
+  size = size || 20;
+  const label = (CONF_NAMES[code] || code || "?");
+  return `<span class="team-badge" style="width:${size}px;height:${size}px;font-size:${Math.round(size*0.35)}px;">` +
+         `<span class="monogram" style="background:${hashColor(label)};">${initialsOf(label)}</span>` +
+         `<img src="logos/conferences/${code}.png" alt="" onerror="this.remove()" onload="this.previousElementSibling.style.display='none'">` +
+         `</span>`;
+}
+
+// ---------- team conference + record-through-a-given-week ----------
+let _TEAM_CONF_LOOKUP = null;
+function getTeamConf(team){
+  if(!_TEAM_CONF_LOOKUP){
+    _TEAM_CONF_LOOKUP = {};
+    (DATA.conference_standings || []).forEach(r => { _TEAM_CONF_LOOKUP[r.team] = r.conference; });
+  }
+  return _TEAM_CONF_LOOKUP[team] || null;
+}
+function teamRecordThroughWeek(team, weekKey){
+  const maxWeek = weekKey === "post_champs" ? Infinity : Number(weekKey);
+  let w = 0, l = 0;
+  DATA.games.forEach(g => {
+    if(Number(g.week) > maxWeek) return;
+    if(g.away !== team && g.home !== team) return;
+    const isHome = g.home === team;
+    const ts = isHome ? g.score_home : g.score_away;
+    const os = isHome ? g.score_away : g.score_home;
+    if(ts > os) w++; else l++;
+  });
+  return `${w}-${l}`;
+}
+
 function showTab(id){
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('active', s.id===id));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.tab===id));
@@ -346,9 +446,9 @@ function renderHero(){
   const final = DATA.playoff_bracket[DATA.playoff_bracket.length-1];
   const a_win = final.winner === final.team_a;
   document.getElementById('hero-scoreboard').innerHTML = `
-    <div class="sb-team"><div class="name" style="${a_win?'color:var(--gold-bright)':''}">${final.team_a}</div><div class="score">${final.score_a}</div></div>
+    <div class="sb-team"><div class="name" style="${a_win?'color:var(--gold-bright)':''}">${teamBadge(final.team_a,28)}${final.team_a}</div><div class="score">${final.score_a}</div></div>
     <div class="sb-vs">FINAL</div>
-    <div class="sb-team"><div class="name" style="${!a_win?'color:var(--gold-bright)':''}">${final.team_b}</div><div class="score">${final.score_b}</div></div>
+    <div class="sb-team"><div class="name" style="${!a_win?'color:var(--gold-bright)':''}">${teamBadge(final.team_b,28)}${final.team_b}</div><div class="score">${final.score_b}</div></div>
   `;
   document.getElementById('hero-sub').textContent = `${DATA.national_champion} wins the projected national championship (${pct(final.win_prob_winner)} win probability).`;
   document.getElementById('stat-row').innerHTML = `
@@ -365,9 +465,11 @@ function weekLabel(key){
 
 function renderRankingsTable(weekKey){
   const rows = DATA.top25_by_week[weekKey] || DATA.top25;
-  document.getElementById('rankings-body').innerHTML = rows.map(r=>`
-    <tr><td><span class="rank-badge">${r.rank}</span></td><td>${r.team}</td><td class="mono">${Math.round(r.elo_rating)}</td></tr>
-  `).join('');
+  document.getElementById('rankings-body').innerHTML = rows.map(r=>{
+    const conf = getTeamConf(r.team);
+    const rec = teamRecordThroughWeek(r.team, weekKey);
+    return `<tr><td><span class="rank-badge">${r.rank}</span></td><td>${teamBadge(r.team)}${r.team}</td><td class="mono">${rec}</td><td>${conf ? (CONF_NAMES[conf] || conf) : '\u2014'}</td><td class="mono">${Math.round(r.elo_rating)}</td></tr>`;
+  }).join('');
 }
 
 function renderRankings(){
@@ -387,7 +489,7 @@ function standingsRowsHtml(rows){
   return rows.map(r=>`
     <tr>
       <td><span class="rank-badge">${r.conf_rank}</span></td>
-      <td>${r.team}</td>
+      <td>${teamBadge(r.team)}${r.team}</td>
       <td class="mono">${r.conf_wins}-${r.conf_losses}</td>
       <td class="mono">${r.conf_home_wins}-${r.conf_home_losses}</td>
       <td class="mono">${r.conf_away_wins}-${r.conf_away_losses}</td>
@@ -409,6 +511,7 @@ function standingsTableHtml(rows){
 }
 
 function renderStandingsTable(conf){
+  document.getElementById('standings-conf-badge').innerHTML = confBadge(conf, 24);
   const rows = (DATA.conference_standings || []).filter(r=>r.conference===conf).sort((a,b)=>a.conf_rank-b.conf_rank);
   const hasDivisions = rows.some(r=>r.division);
   if(hasDivisions){
@@ -438,9 +541,9 @@ function renderConferences(){
     const t1win = c.predicted_champion === c.team1;
     return `
     <div class="card">
-      <div class="conf-label">${CONF_NAMES[c.conference] || c.conference}</div>
-      <div class="matchup-row"><span class="tname ${t1win?'winner':''}">${rankTag(c.rank_team1)}${c.team1}</span><span class="tscore ${t1win?'winner':''}">${c.pred_score_team1}</span></div>
-      <div class="matchup-row"><span class="tname ${!t1win?'winner':''}">${rankTag(c.rank_team2)}${c.team2}</span><span class="tscore ${!t1win?'winner':''}">${c.pred_score_team2}</span></div>
+      <div class="conf-label">${confBadge(c.conference, 18)}${CONF_NAMES[c.conference] || c.conference}</div>
+      <div class="matchup-row"><span class="tname ${t1win?'winner':''}">${teamBadge(c.team1)}${rankTag(c.rank_team1)}${c.team1}</span><span class="tscore ${t1win?'winner':''}">${c.pred_score_team1}</span></div>
+      <div class="matchup-row"><span class="tname ${!t1win?'winner':''}">${teamBadge(c.team2)}${rankTag(c.rank_team2)}${c.team2}</span><span class="tscore ${!t1win?'winner':''}">${c.pred_score_team2}</span></div>
       <div class="probbar"><div class="probbar-fill" style="width:${pct(t1win?c.win_prob_team1:c.win_prob_team2)}"></div></div>
       <div style="font-size:11px;color:var(--chalk-dim);margin-top:6px;font-family:'IBM Plex Mono',monospace;">${c.predicted_champion} wins, ${pct(t1win?c.win_prob_team1:c.win_prob_team2)} win prob.${(t1win?c.win_prob_team1:c.win_prob_team2)<0.5?' (upset)':''}</div>
     </div>`;
@@ -451,8 +554,8 @@ function bracketCard(g){
   const aWin = g.winner === g.team_a;
   return `
     <div class="matchup-card">
-      <div class="mline ${aWin?'win':''}">${g.seed_a?`<span class="seed">(${g.seed_a})</span>`:''}${g.team_a} <span class="sc">${g.score_a}</span></div>
-      <div class="mline ${!aWin?'win':''}">${g.seed_b?`<span class="seed">(${g.seed_b})</span>`:''}${g.team_b} <span class="sc">${g.score_b}</span></div>
+      <div class="mline ${aWin?'win':''}">${g.seed_a?`<span class="seed">(${g.seed_a})</span>`:''}${teamBadge(g.team_a,16)}${g.team_a} <span class="sc">${g.score_a}</span></div>
+      <div class="mline ${!aWin?'win':''}">${g.seed_b?`<span class="seed">(${g.seed_b})</span>`:''}${teamBadge(g.team_b,16)}${g.team_b} <span class="sc">${g.score_b}</span></div>
       <div class="prob">${g.winner} ${pct(g.win_prob_winner)} win prob.</div>
     </div>`;
 }
@@ -464,7 +567,7 @@ function renderBracket(){
     const games = DATA.playoff_bracket.filter(g=>g.round===r);
     return `<div class="round-col"><div class="round-label">${r}</div>${games.map(bracketCard).join('')}</div>`;
   }).join('');
-  document.getElementById('champ-name').textContent = DATA.national_champion;
+  document.getElementById('champ-name').innerHTML = teamBadge(DATA.national_champion,32) + DATA.national_champion;
 }
 
 const UPSET_CATEGORY_CLASS = {
@@ -474,12 +577,12 @@ const UPSET_CATEGORY_CLASS = {
 
 function upsetHeadline(u){
   if(u.category === "Lower-ranked over Higher-ranked"){
-    return `<b>#${u.winner_rank} ${u.predicted_winner}</b> over <b>#${u.loser_rank} ${u.loser}</b>`;
+    return `<b>${teamBadge(u.predicted_winner,16)}#${u.winner_rank} ${u.predicted_winner}</b> over <b>${teamBadge(u.loser,16)}#${u.loser_rank} ${u.loser}</b>`;
   }
   if(u.category === "Unranked over Ranked"){
-    return `<b>${u.predicted_winner}</b> (unranked) over <b>#${u.loser_rank} ${u.loser}</b>`;
+    return `<b>${teamBadge(u.predicted_winner,16)}${u.predicted_winner}</b> (unranked) over <b>${teamBadge(u.loser,16)}#${u.loser_rank} ${u.loser}</b>`;
   }
-  return `<b>${u.predicted_winner}</b> over <b>${u.loser}</b>`;
+  return `<b>${teamBadge(u.predicted_winner,16)}${u.predicted_winner}</b> over <b>${teamBadge(u.loser,16)}${u.loser}</b>`;
 }
 
 function renderUpsets(){
@@ -538,7 +641,7 @@ function renderTeam(team){
     return `<tr>
       <td class="mono">Wk ${g.week}</td>
       <td class="mono">${dateStr}</td>
-      <td><span class="site-tag">${isHome?'VS':'AT'}</span>${rankTag(oppRank)}${opp}</td>
+      <td><span class="site-tag">${isHome?'VS':'AT'}</span>${teamBadge(opp)}${rankTag(oppRank)}${opp}</td>
       <td class="mono">${ts}&ndash;${os}</td>
       <td class="mono">${pct(wp)}</td>
       <td><span class="result-tag ${win?'W':'L'}">${win?'W':'L'}</span></td>
@@ -546,7 +649,7 @@ function renderTeam(team){
     </tr>`;
   }).join('');
   resultEl.innerHTML = `
-    <div class="team-record"><div class="tname">${team}</div><div class="rec">${wins}-${losses}</div></div>
+    <div class="team-record"><div class="tname">${teamBadge(team,36)}${team}</div><div class="rec">${wins}-${losses}</div></div>
     <table>
       <thead><tr><th>Week</th><th>Date</th><th>Opponent</th><th>Score</th><th>Win Prob.</th><th>Result</th><th>Record</th></tr></thead>
       <tbody>${gameRows}</tbody>
@@ -580,11 +683,11 @@ function renderWeekGamesTable(wk){
           const awayWin = g.predicted_winner === g.away;
           return `<tr>
             <td class="mono">${dateStr}</td>
-            <td class="${awayWin?'':''}" style="${awayWin?'color:var(--gold-bright);font-weight:600;':''}">${rankTag(g.rank_away_live)}${g.away}</td>
-            <td style="${!awayWin?'color:var(--gold-bright);font-weight:600;':''}">${rankTag(g.rank_home_live)}${g.home}</td>
+            <td class="${awayWin?'':''}" style="${awayWin?'color:var(--gold-bright);font-weight:600;':''}">${teamBadge(g.away)}${rankTag(g.rank_away_live)}${g.away}</td>
+            <td style="${!awayWin?'color:var(--gold-bright);font-weight:600;':''}">${teamBadge(g.home)}${rankTag(g.rank_home_live)}${g.home}</td>
             <td class="mono">${g.score_away}&ndash;${g.score_home}</td>
             <td class="mono">${pct(awayWin ? g.win_prob_away : g.win_prob_home)}</td>
-            <td>${g.predicted_winner}</td>
+            <td>${teamBadge(g.predicted_winner,16)}${g.predicted_winner}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -602,6 +705,7 @@ function renderWeekGames(){
   }
 }
 
+normalizeTeamNames(DATA);
 renderHero();
 renderRankings();
 renderStandings();
