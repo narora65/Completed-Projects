@@ -7,7 +7,7 @@ A collection of data science, meteorology, and analytics projects spanning stati
 ## Projects
 
 ### 2026 College Football Score & Playoff Prediction Pipeline
-**Files:** `cfb_pipeline.py` · `index.html` (live site)  
+**Files:** `cfb_pipeline.py` · `index.html` (**Live site:** [2026 CFB Predictions](https://narora65.github.io/Completed-Projects/))  
 **Language:** Python
 
 An end-to-end machine learning pipeline that predicts every FBS college football game for the 2026 season from 24 years of historical box scores (2002–2024), then simulates conference standings, conference championships, and the 12-team College Football Playoff. Combines a trained XGBoost score-prediction model with a sequential Elo rating system, incorporating recruiting composite rankings, transfer portal data, returning production, SP+ ratings, and coaching-hire quality as preseason adjustments. The final projection is built from the median outcome across 20 independently simulated seasons rather than a single random draw, so one lucky or unlucky sequence of results doesn't dominate the result. Published as a self-contained, interactive website with weekly rankings, conference standings, upset tracking, and a full team-by-team schedule lookup.
