@@ -320,7 +320,7 @@
 </main>
 
 <footer>
-  Generated 2026-07-30 00:53:48 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
+  Created 2026-07-30 00:53:48 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
   model: XGBoost score regression + Elo ratings &middot; not affiliated with the NCAA or CFP.
 </footer>
 
@@ -335,7 +335,7 @@ const CONF_NAMES = {
 function pct(x){ return Math.round(x*100)+"%"; }
 
 // ---------- display-name fixes ----------
-const TEAM_DISPLAY_FIX = { "Massachusetts": "UMass", "Elon University": "Elon" };
+const TEAM_DISPLAY_FIX = { "Massachusetts": "UMass", "Elon University": "Elon", "UL-Lafayette": "Louisiana", "UL-Monroe": "Louisiana-Monroe", "Connecticut": "UConn", "Tennessee-Martin": "UT Martin", "UC-Davis": "UC Davis" };
 function normalizeTeamNames(data){
   const fields = ["away","home","team","team1","team2","predicted_winner","predicted_champion","loser","winner","team_a","team_b"];
   function walk(obj){
