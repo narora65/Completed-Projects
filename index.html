@@ -320,7 +320,7 @@
 </main>
 
 <footer>
-  Created July 30 2026 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
+  Created 2026-07-30 00:53:48 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
   model: XGBoost score regression + Elo ratings &middot; not affiliated with the NCAA or CFP.
 </footer>
 
@@ -447,14 +447,17 @@ function renderHero(){
 }
 
 function weekLabel(key){
-  if(key === 'post_champs') return 'After Conf. Championships';
+  if(key === 'post_champs') return 'Week 14 (Conference Championships)';
   return `Week ${key}`;
 }
 
 function getOrderedWeekKeys(){
   const weekKeys = Object.keys(DATA.top25_by_week || {});
   const numericWeeks = weekKeys.filter(k=>k!=='post_champs').sort((a,b)=>Number(a)-Number(b));
-  return weekKeys.includes('post_champs') ? [...numericWeeks, 'post_champs'] : numericWeeks;
+  if(!weekKeys.includes('post_champs')) return numericWeeks;
+  const before = numericWeeks.filter(k=>Number(k) < 14);
+  const after = numericWeeks.filter(k=>Number(k) >= 14);
+  return [...before, 'post_champs', ...after];
 }
 
 function rankChangeCell(team, currentRank, prevRanksMap){
@@ -494,7 +497,7 @@ function renderRankings(){
   const orderedKeys = getOrderedWeekKeys();
   const select = document.getElementById('rankings-week-select');
   select.innerHTML = orderedKeys.map(k=>`<option value="${k}">${weekLabel(k)}</option>`).join('');
-  const defaultKey = orderedKeys[orderedKeys.length-1];
+  const defaultKey = orderedKeys.includes('post_champs') ? 'post_champs' : orderedKeys[orderedKeys.length-1];
   select.value = defaultKey;
   select.addEventListener('change', e=>renderRankingsTable(e.target.value));
   renderRankingsTable(defaultKey);
