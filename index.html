@@ -447,14 +447,35 @@ function renderHero(){
 }
 
 function weekLabel(key){
-  if(key === 'post_champs') return 'After Conf. Championships';
+  if(key === 'post_champs') return 'Week 14 (Conference Championships)';
   return `Week ${key}`;
 }
 
 function getOrderedWeekKeys(){
+  // Controls DROPDOWN DISPLAY ORDER only.
   const weekKeys = Object.keys(DATA.top25_by_week || {});
   const numericWeeks = weekKeys.filter(k=>k!=='post_champs').sort((a,b)=>Number(a)-Number(b));
-  return weekKeys.includes('post_champs') ? [...numericWeeks, 'post_champs'] : numericWeeks;
+  if(!weekKeys.includes('post_champs')) return numericWeeks;
+  const before = numericWeeks.filter(k=>Number(k) < 14);
+  const after = numericWeeks.filter(k=>Number(k) >= 14);
+  return [...before, 'post_champs', ...after];
+}
+
+function getComparisonPreviousKey(weekKey){
+  // Controls what counts as "the previous week" for the Change column --
+  // deliberately SEPARATE from display order. post_champs is computed as
+  // "full season through week 15, plus a championship bonus", not as a
+  // real mid-season snapshot, so it always compares against the last real
+  // numbered week (15) regardless of where it's shown in the dropdown --
+  // and week 15 in turn always compares against week 13 (the last week
+  // with real games for most teams), never against post_champs.
+  const weekKeys = Object.keys(DATA.top25_by_week || {});
+  const numericWeeks = weekKeys.filter(k=>k!=='post_champs').sort((a,b)=>Number(a)-Number(b));
+  if(weekKey === 'post_champs'){
+    return numericWeeks.length ? numericWeeks[numericWeeks.length-1] : null;
+  }
+  const idx = numericWeeks.indexOf(weekKey);
+  return idx > 0 ? numericWeeks[idx-1] : null;
 }
 
 function rankChangeCell(team, currentRank, prevRanksMap){
@@ -477,9 +498,7 @@ function rankChangeCell(team, currentRank, prevRanksMap){
 
 function renderRankingsTable(weekKey){
   const rows = DATA.top25_by_week[weekKey] || DATA.top25;
-  const orderedKeys = getOrderedWeekKeys();
-  const idx = orderedKeys.indexOf(weekKey);
-  const prevKey = idx > 0 ? orderedKeys[idx-1] : null;
+  const prevKey = getComparisonPreviousKey(weekKey);
   const prevRows = prevKey ? (DATA.top25_by_week[prevKey] || []) : null;
   const prevRanksMap = prevRows ? Object.fromEntries(prevRows.map(r=>[r.team, r.rank])) : null;
   document.getElementById('rankings-body').innerHTML = rows.map(r=>{
