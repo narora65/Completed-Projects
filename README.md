@@ -65,6 +65,7 @@ A numerical simulation of the barotropic vorticity equation, a fundamental model
 **Files:** `Global GDP Rankings & Visualizations.sql` · `Global GDP Rankings & Visualizations.twbx`  
 **Languages:** SQL · Tableau
 
+
 Data analysis and interactive dashboard exploring global GDP rankings and trends. SQL used for querying and transforming data; Tableau used for visualization and storytelling.
 
 
