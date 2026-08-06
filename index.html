@@ -320,7 +320,7 @@
 </main>
 
 <footer>
-  Created July 30 2026 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
+  Created 2026-07-30 00:53:48 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
   model: XGBoost score regression + Elo ratings &middot; not affiliated with the NCAA or CFP.
 </footer>
 
@@ -433,10 +433,12 @@ function renderHero(){
   const rightTeam = aFirst ? final.team_b : final.team_a;
   const rightScore = aFirst ? final.score_b : final.score_a;
   const leftWin = final.winner === leftTeam;
+  const leftSeed = getTeamSeed(leftTeam);
+  const rightSeed = getTeamSeed(rightTeam);
   document.getElementById('hero-scoreboard').innerHTML = `
-    <div class="sb-team"><div class="name" style="${leftWin?'color:var(--gold-bright)':''}">${leftTeam}</div><div class="score">${leftScore}</div></div>
+    <div class="sb-team"><div class="name" style="${leftWin?'color:var(--gold-bright)':''}">${leftSeed?`<span class="seed">(${leftSeed})</span> `:''}${leftTeam}</div><div class="score">${leftScore}</div></div>
     <div class="sb-vs">FINAL</div>
-    <div class="sb-team"><div class="name" style="${!leftWin?'color:var(--gold-bright)':''}">${rightTeam}</div><div class="score">${rightScore}</div></div>
+    <div class="sb-team"><div class="name" style="${!leftWin?'color:var(--gold-bright)':''}">${rightSeed?`<span class="seed">(${rightSeed})</span> `:''}${rightTeam}</div><div class="score">${rightScore}</div></div>
   `;
   document.getElementById('hero-sub').textContent = `${DATA.national_champion} wins the projected national championship (${pct(final.win_prob_winner)} win probability).`;
   document.getElementById('stat-row').innerHTML = `
@@ -589,12 +591,23 @@ function renderConferences(){
   }).join('');
 }
 
+let _TEAM_SEED_LOOKUP = null;
+function getTeamSeed(team){
+  if(!_TEAM_SEED_LOOKUP){
+    _TEAM_SEED_LOOKUP = {};
+    Object.entries(DATA.playoff_seeds || {}).forEach(([seed, t]) => { _TEAM_SEED_LOOKUP[t] = seed; });
+  }
+  return _TEAM_SEED_LOOKUP[team];
+}
+
 function bracketCard(g){
   const aWin = g.winner === g.team_a;
+  const seedA = getTeamSeed(g.team_a);
+  const seedB = getTeamSeed(g.team_b);
   return `
     <div class="matchup-card">
-      <div class="mline ${aWin?'win':''}">${g.seed_a?`<span class="seed">(${g.seed_a})</span>`:''}${g.team_a} <span class="sc">${g.score_a}</span></div>
-      <div class="mline ${!aWin?'win':''}">${g.seed_b?`<span class="seed">(${g.seed_b})</span>`:''}${g.team_b} <span class="sc">${g.score_b}</span></div>
+      <div class="mline ${aWin?'win':''}">${seedA?`<span class="seed">(${seedA})</span>`:''}${g.team_a} <span class="sc">${g.score_a}</span></div>
+      <div class="mline ${!aWin?'win':''}">${seedB?`<span class="seed">(${seedB})</span>`:''}${g.team_b} <span class="sc">${g.score_b}</span></div>
       <div class="prob">${g.winner} ${pct(g.win_prob_winner)} win prob.</div>
     </div>`;
 }
@@ -606,7 +619,8 @@ function renderBracket(){
     const games = DATA.playoff_bracket.filter(g=>g.round===r);
     return `<div class="round-col"><div class="round-label">${r}</div>${games.map(bracketCard).join('')}</div>`;
   }).join('');
-  document.getElementById('champ-name').textContent = DATA.national_champion;
+  const champSeed = getTeamSeed(DATA.national_champion);
+  document.getElementById('champ-name').textContent = champSeed ? `(${champSeed}) ${DATA.national_champion}` : DATA.national_champion;
 }
 
 const UPSET_CATEGORY_CLASS = {
