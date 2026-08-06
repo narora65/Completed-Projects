@@ -136,8 +136,11 @@
 
   /* ---------- bracket ---------- */
   .bracket{ display:flex; gap:26px; overflow-x:auto; padding-bottom:14px; }
-  .round-col{ display:flex; flex-direction:column; justify-content:space-around; min-width:230px; gap:16px; }
-  .round-label{ font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.1em; text-align:center; margin-bottom:6px;}
+  .round-col{ display:flex; flex-direction:column; min-width:230px; }
+  .round-games{ display:flex; flex-direction:column; gap:16px; flex:1; }
+  .bracket-slot{ display:flex; flex-direction:column; justify-content:center; }
+  .bracket-slot .matchup-card{ width:100%; }
+  .round-label{ font-family:'IBM Plex Mono',monospace; color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.1em; text-align:center; margin-bottom:10px;}
   .matchup-card{
     background:var(--panel); border:1px solid var(--hash); border-radius:5px; padding:10px 12px; position:relative;
   }
@@ -243,8 +246,8 @@
         using Elo ratings, rolling scoring form, rest days, and home-field/neutral-site context, but never
         preseason rankings. Each game's result is a random draw from the model's own calibrated uncertainty,
         not just its safest guess, so occasional upsets and blowouts show up the same way they do in a real
-        season. Each week's result is fed back in to project the next week, compounding forward from whatever 
-        weeks of the schedule have been entered so far.
+        season. The 2026 season doesn't exist yet, so each week's result is fed back in to project the next
+        week, compounding forward from whatever weeks of the schedule have been entered so far.
       </div>
     </div>
     <h2 class="section-title">Quick Links</h2>
@@ -320,7 +323,7 @@
 </main>
 
 <footer>
-  Created July 30 2026 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
+  Created 2026-07-30 00:53:48 &middot; weeks included: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15 &middot;
   model: XGBoost score regression + Elo ratings &middot; not affiliated with the NCAA or CFP.
 </footer>
 
@@ -610,12 +613,58 @@ function bracketCard(g){
     </div>`;
 }
 
+function reorderBracketForDisplay(){
+  // Real playoff seeding "crosses" at every level (not just Round 1 ->
+  // Quarterfinal), so a simple "step through pairs" reorder isn't enough --
+  // it has to trace true lineage. This works backward from the championship
+  // game: for each game, find which earlier-round game each of its two
+  // teams actually came from, and recurse. The result is a per-round list
+  // where any two adjacent games are guaranteed to actually feed the same
+  // next-round matchup, which is what makes CSS-based midpoint alignment
+  // (below) represent real connections instead of a coincidence.
+  const roundOrder = ["Round 1","Quarterfinal","Semifinal","National Championship"];
+  const byRound = {};
+  roundOrder.forEach(r => { byRound[r] = DATA.playoff_bracket.filter(g=>g.round===r); });
+  if(!byRound["National Championship"].length) return byRound;
+
+  const orderedByRound = {};
+  roundOrder.forEach(r => { orderedByRound[r] = []; });
+
+  function findGameWithTeam(games, team){
+    return games.find(g => g.team_a===team || g.team_b===team) || null;
+  }
+  function visit(game, roundIdx){
+    if(!game) return;
+    orderedByRound[roundOrder[roundIdx]].push(game);
+    if(roundIdx === 0) return;
+    const prevGames = byRound[roundOrder[roundIdx-1]];
+    visit(findGameWithTeam(prevGames, game.team_a), roundIdx-1);
+    visit(findGameWithTeam(prevGames, game.team_b), roundIdx-1);
+  }
+  visit(byRound["National Championship"][0], roundOrder.length-1);
+
+  roundOrder.forEach(r => {
+    if(orderedByRound[r].length !== byRound[r].length) orderedByRound[r] = byRound[r]; // safety net
+  });
+  return orderedByRound;
+}
+
+const ROUND_SLOT_WEIGHT = { "Round 1": 1, "Quarterfinal": 1, "Semifinal": 2, "National Championship": 4 };
+
+const ROUND_DISPLAY_NAME = { "Round 1": "First Round", "Quarterfinal": "Quarterfinal", "Semifinal": "Semifinal", "National Championship": "National Championship" };
+
 function renderBracket(){
   const rounds = ["Round 1","Quarterfinal","Semifinal","National Championship"];
+  const ordered = reorderBracketForDisplay();
   const el = document.getElementById('bracket-el');
   el.innerHTML = rounds.map(r=>{
-    const games = DATA.playoff_bracket.filter(g=>g.round===r);
-    return `<div class="round-col"><div class="round-label">${r}</div>${games.map(bracketCard).join('')}</div>`;
+    const games = ordered[r] || [];
+    const weight = ROUND_SLOT_WEIGHT[r] || 1;
+    const slots = games.map((g,i) => {
+      const labelHtml = i===0 ? `<div class="round-label">${ROUND_DISPLAY_NAME[r] || r}</div>` : '';
+      return `<div class="bracket-slot" style="flex:${weight} 1 0;">${labelHtml}${bracketCard(g)}</div>`;
+    }).join('');
+    return `<div class="round-col"><div class="round-games">${slots}</div></div>`;
   }).join('');
   document.getElementById('champ-name').textContent = DATA.national_champion;
 }
