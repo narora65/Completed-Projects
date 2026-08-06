@@ -433,8 +433,6 @@ function renderHero(){
   const rightTeam = aFirst ? final.team_b : final.team_a;
   const rightScore = aFirst ? final.score_b : final.score_a;
   const leftWin = final.winner === leftTeam;
-  const leftSeed = getTeamSeed(leftTeam);
-  const rightSeed = getTeamSeed(rightTeam);
   document.getElementById('hero-scoreboard').innerHTML = `
     <div class="sb-team"><div class="name" style="${leftWin?'color:var(--gold-bright)':''}">${leftSeed?`<span class="seed">(${leftSeed})</span> `:''}${leftTeam}</div><div class="score">${leftScore}</div></div>
     <div class="sb-vs">FINAL</div>
@@ -619,7 +617,6 @@ function renderBracket(){
     const games = DATA.playoff_bracket.filter(g=>g.round===r);
     return `<div class="round-col"><div class="round-label">${r}</div>${games.map(bracketCard).join('')}</div>`;
   }).join('');
-  const champSeed = getTeamSeed(DATA.national_champion);
   document.getElementById('champ-name').textContent = champSeed ? `(${champSeed}) ${DATA.national_champion}` : DATA.national_champion;
 }
 
